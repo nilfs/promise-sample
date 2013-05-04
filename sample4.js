@@ -16,12 +16,6 @@ Promise.prototype = {
     this._exec()
   },
 
-  then: function(callback){
-    this._callbacks.push( callback );
-
-    this._exec()
-  },
-
   resolve: function(results){
     if( !this._results ){
       this._results = arguments
