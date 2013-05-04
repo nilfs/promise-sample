@@ -1,6 +1,7 @@
 var sys   = require('sys')  
     async = require('async'),
-    fs    = require('fs');
+    fs    = require('fs'),
+    util  = require('util');
 
 function Promise(){
   this._callbacks = []
@@ -8,6 +9,12 @@ function Promise(){
 
 Promise.prototype = {
   constructor: Promise,
+
+  then: function(callback){
+    this._callbacks.push( callback );
+
+    this._exec()
+  },
 
   then: function(callback){
     this._callbacks.push( callback );
@@ -56,6 +63,28 @@ Promise.prototype = {
 };
 
 
+var LazyPromise = function(factory) {
+  this.constructor.super_.call(this)
+
+  this._factory = factory;
+  this._started = false;
+};
+util.inherits(LazyPromise, Promise);
+
+LazyPromise.prototype.then = function() {
+  if (!this._started) {
+    this._started = true;
+    var self = this;
+
+    this._factory(function(error, result) {
+      if (error) self.reject(error);
+      else self.resolve(result);
+    });
+  }
+  return Promise.prototype.then.apply(this, arguments);
+};
+
+
 // promisify :: (a -> (Error -> b -> ()) -> ()) -> (a -> Promise b)
 var promisify = function(fn, receiver) {
   return function() {
@@ -97,17 +126,15 @@ var list = function(promises) {
   return promises;
 };
 
-var fs_stat = promisify( function(v, callback){ sys.log(v); return fs.stat(v, callback) });
 
-var paths = ['resources/file1.txt', 'resources/file2.txt', 'resources/file3.txt'],
-    statsPromises = list(paths.map(fs_stat));
-
-statsPromises[0].then(function(stat) {
-  sys.log( 'statsPromises[0] ' + stat.size)
+var delayed = new LazyPromise(function(callback) {
+  console.log('Started');
+  setTimeout(function() {
+    console.log('Done');
+    callback(null, 42);
+  }, 1000);
 });
 
-statsPromises.then(function(stats) {
-  for( var i=0; i<stats.length; ++i ){
-    sys.log( 'statsPromises ' + stats[i].size)
-  }
-});
+delayed.then(console.log);
+delayed.then(console.log);
+delayed.then(console.log);
